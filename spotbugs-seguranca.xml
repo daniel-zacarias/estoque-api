@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Só as categorias de segurança (FindSecBugs) e as de código malicioso/vulnerável do SpotBugs -->
+<FindBugsFilter>
+    <Match>
+        <Bug category="SECURITY"/>
+        <!-- SPRING_ENDPOINT é só inventário ("isto é um endpoint"), não uma vulnerabilidade -->
+        <Not>
+            <Bug pattern="SPRING_ENDPOINT"/>
+        </Not>
+    </Match>
+    <Match>
+        <Bug category="MALICIOUS_CODE"/>
+    </Match>
+</FindBugsFilter>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Falsos positivos revisados. Cada exclusão é o mais estreita possível e diz o porquê.
+  Antes de adicionar algo aqui, confirme que não é um achado real.
+-->
+<FindBugsFilter>
+    <!-- Corpo do 429: só contém dois inteiros (limite e segundos) e sai como application/problem+json.
+         Nenhum dado do usuário é escrito, então não há XSS. -->
+    <Match>
+        <Class name="com.daniel.estoque.config.LimiteRequisicoesFilter"/>
+        <Bug pattern="XSS_SERVLET"/>
+    </Match>
+</FindBugsFilter>

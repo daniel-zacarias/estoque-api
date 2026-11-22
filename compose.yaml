@@ -1,0 +1,126 @@
+# Produção na VPS (ADR-003). Só o Caddy publica portas.
+# Uso: cp .env.example .env && chmod 600 .env && (edite) && docker compose up -d
+# "${VAR:?...}": o compose recusa subir se a variável estiver vazia ou ausente no .env.
+name: estoque
+
+# Nenhum processo ganha privilégios extras via setuid/file capabilities
+x-seguranca: &seguranca
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  caddy:
+    <<: *seguranca
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMINIO: ${DOMINIO:?defina DOMINIO no .env}
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [borda]
+    mem_limit: 128m
+    depends_on:
+      - api
+      - keycloak
+
+  api:
+    <<: *seguranca
+    image: ghcr.io/${GHCR_OWNER:?defina GHCR_OWNER no .env}/estoque-api:${API_TAG:?defina API_TAG no .env}
+    restart: unless-stopped
+    # A API não precisa de nenhuma capability do kernel nem de escrever no disco (fora do /tmp)
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/estoque
+      # Runtime: só DML. DDL fica com o usuário de migração, usado apenas pelo Flyway.
+      DB_USER: estoque_app
+      DB_PASSWORD: ${API_DB_PASSWORD:?defina API_DB_PASSWORD no .env}
+      SPRING_FLYWAY_USER: estoque_migracao
+      SPRING_FLYWAY_PASSWORD: ${MIGRACAO_DB_PASSWORD:?defina MIGRACAO_DB_PASSWORD no .env}
+      # Valida o "iss" do token com a URL pública...
+      KEYCLOAK_ISSUER_URI: https://auth.${DOMINIO}/realms/estoque
+      # ...mas busca as chaves pela rede interna, sem sair da VPS
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/estoque/protocol/openid-connect/certs
+      # Token precisa ter "estoque-api" no "aud" (mapper Audience no Keycloak)
+      KEYCLOAK_AUDIENCE: estoque-api
+      # Contrato da API não fica público em produção
+      SWAGGER_ENABLED: "false"
+    networks: [borda, dados]
+    mem_limit: 768m
+    healthcheck:
+      # A imagem JRE não tem curl/wget: usa o /dev/tcp do bash
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      start_period: 60s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  keycloak:
+    <<: *seguranca
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
+    restart: unless-stopped
+    command: ["start"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?defina KEYCLOAK_DB_PASSWORD no .env}
+      KC_HOSTNAME: https://auth.${DOMINIO}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:?defina KEYCLOAK_ADMIN_USER no .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?defina KEYCLOAK_ADMIN_PASSWORD no .env}
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=70"
+    networks: [borda, dados]
+    mem_limit: 1g
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    <<: *seguranca
+    image: postgres:17-alpine@sha256:526f86d93c6ea08fd3f1fe5605650cacc781b2c6013169a0ad8f42c7d3d84f32
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: estoque
+      # Superusuário: só administração/backup. A API e o Keycloak têm usuários próprios.
+      POSTGRES_USER: estoque
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      # Lidas só pelo script de init (primeira subida do volume)
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      MIGRACAO_DB_PASSWORD: ${MIGRACAO_DB_PASSWORD:?defina MIGRACAO_DB_PASSWORD no .env}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?defina API_DB_PASSWORD no .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+    networks: [dados]
+    mem_limit: 512m
+    # Sem "ports:": o banco não é acessível de fora da VPS.
+    # Para acessar do seu PC: ssh -L 5432:<ip-do-container>:5432 usuario@vps
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U estoque -d estoque"]
+      interval: 10s
+      retries: 10
+
+networks:
+  borda:
+  dados:
+    internal: true
+
+volumes:
+  pgdata:
+  caddy-data:
+  caddy-config:

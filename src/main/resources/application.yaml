@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: estoque-api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/estoque}
+    username: ${DB_USER:estoque}
+    password: ${DB_PASSWORD:estoque}
+
+  jpa:
+    # Evita consultas escondidas na camada web: tudo que for lido acontece dentro do caso de uso
+    open-in-view: false
+    hibernate:
+      # O esquema é do Flyway; o Hibernate só confere se as entidades batem com ele
+      ddl-auto: validate
+
+  data:
+    web:
+      # Listagens paginadas: ?pagina=0&tamanho=10&ordenacao=nome,asc
+      pageable:
+        default-page-size: 10
+        max-page-size: 100
+        page-parameter: pagina
+        size-parameter: tamanho
+      sort:
+        sort-parameter: ordenacao
+
+  threads:
+    virtual:
+      enabled: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/estoque}
+          # Só aceita tokens emitidos PARA esta API (claim "aud"), não para qualquer cliente do realm.
+          # No Keycloak: client scope com mapper "Audience" incluindo "estoque-api".
+          audiences: ${KEYCLOAK_AUDIENCE:estoque-api}
+
+server:
+  # Atrás do Caddy: respeita X-Forwarded-* (https, host)
+  forward-headers-strategy: framework
+  shutdown: graceful
+
+springdoc:
+  api-docs:
+    # Em produção, defina SWAGGER_ENABLED=false se a documentação não deve ficar exposta
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    operations-sorter: method
+    tags-sorter: alpha
+    persist-authorization: true
+  default-produces-media-type: application/json
+
+estoque:
+  limite-requisicoes:
+    # Por usuário autenticado, janela de 1 minuto. Excedeu: 429 com Retry-After.
+    por-minuto: ${LIMITE_REQUISICOES_POR_MINUTO:300}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -1,0 +1,7 @@
+# Exceções revisadas do Trivy. Toda linha tem justificativa e data de expiração (exp:):
+# depois dela a CVE volta a quebrar o CI e precisa ser reavaliada.
+
+# Go stdlib no /usr/bin/pebble da imagem eclipse-temurin:25-jre (Ubuntu 26.04).
+# O pebble não roda no container (ENTRYPOINT é o java) e é um servidor HTTP/1 local não exposto.
+# Some quando a imagem base for reconstruída com Go >= 1.27.4 (o Dependabot traz o digest novo).
+CVE-2026-97054 exp:2027-01-31

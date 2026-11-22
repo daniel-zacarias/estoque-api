@@ -1,0 +1,54 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Headers comuns aos dois sites. HSTS só faz sentido porque tudo aqui é HTTPS (Caddy redireciona o 80).
+(seguranca) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		# Não anuncia o software/versão do servidor
+		-Server
+		-Via
+	}
+}
+
+api.{$DOMINIO} {
+	encode zstd gzip
+	import seguranca
+
+	# A API só devolve JSON: nada pode ser executado nem embutido em frame.
+	# (Se ligar o Swagger em produção, este CSP bloqueia a UI: afrouxe só nesse caso.)
+	header {
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+	}
+
+	# Corpo máximo de 1 MB: um pedido com 100 itens tem ~5 KB
+	request_body {
+		max_size 1MB
+	}
+
+	# Actuator só expõe health; o resto não sai da VPS
+	@actuatorInterno {
+		path /actuator/*
+		not path /actuator/health /actuator/health/*
+	}
+	respond @actuatorInterno 404
+
+	reverse_proxy api:8080
+}
+
+auth.{$DOMINIO} {
+	encode zstd gzip
+	import seguranca
+	# Sem CSP/X-Frame-Options aqui: o Keycloak define os seus por realm (e usa iframes próprios)
+
+	# Console de administração e realm master não ficam na internet.
+	# Para administrar: ssh -L 8080:<ip-do-container-keycloak>:8080 usuario@vps
+	@adminKeycloak path /admin /admin/* /realms/master /realms/master/*
+	respond @adminKeycloak 404
+
+	reverse_proxy keycloak:8080
+}

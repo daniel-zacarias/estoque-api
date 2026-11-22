@@ -1,0 +1,28 @@
+# Atualizações automáticas (gratuito no GitHub). Cada PR passa pelo CI: testes, SAST e Trivy.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      spring:
+        patterns: ["org.springframework*", "org.springdoc*"]
+
+  # Digests das imagens base do Dockerfile (tag@sha256)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Digests de caddy, postgres e keycloak nos compose
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+
+  # SHAs das actions do CI
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,106 @@
+{
+  "realm": "estoque",
+  "enabled": true,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Gerencia produtos e ajusta estoque"
+      },
+      {
+        "name": "operador",
+        "description": "Cria, confirma e cancela pedidos"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "estoque-dev",
+      "name": "Cliente de desenvolvimento (password grant)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audiencia-estoque-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "estoque-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "estoque-android",
+      "name": "App Android (login nativo, password grant)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "audiencia-estoque-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "estoque-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@estoque.local",
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Dev",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "operador"
+      ]
+    },
+    {
+      "username": "operador",
+      "enabled": true,
+      "email": "operador@estoque.local",
+      "emailVerified": true,
+      "firstName": "Operador",
+      "lastName": "Dev",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "operador123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "operador"
+      ]
+    }
+  ]
+}
