@@ -8,7 +8,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <!-- ADR-002: linha 4.1.x. Confira o patch mais recente em start.spring.io -->
-        <version>4.1.1</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
